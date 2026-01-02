@@ -264,57 +264,65 @@ export class InputController {
      */
     private resolveHit(point: Point) {
         const { r, theta } = cartesianToPolar(point.x, point.y);
-        const targetDepth = hitTest(point, this.config).depth; // First get depth blindly
+        let targetDepth = hitTest(point, this.config).depth; // First get depth blindly
+
+        // Safety Cap to prevent potential infinite loops
+        if (targetDepth > 100) targetDepth = 100;
 
         if (targetDepth === -1) return { depth: -1, index: -1, item: null };
 
-        // Iterative Path Resolution (Fix for "Stale Path" edge case)
-        // Instead of relying on state.activePath, we rebuild the path from the root
-        // up to the target depth based on the current pointer angle.
-        // This assumes the user's angle applies to all rings, which is standard for radial menus.
-
+        // Atomic Path Resolution from Root
+        // We do NOT trust the current state.activePath. We rebuild it based on geometry.
+        
         let currentItems = this.rootItems;
-        // We only need to resolve up to targetDepth. 
-        // BUT we need to check if we can actually GET to targetDepth.
-        // i.e., does the item at depth 0 actually have children?
-
-        // However, radial menus are sector-based.
-        // The angle theta dictates the selection at EVERY depth simultaneously if alignment is consistent.
-        // If sectors are aligned (parent 0 covers same angle as child 0..N), we can walk down.
-
-        // Let's assume standard alignment: child sectors are contained within parent sector
-        // OR standard radial menu: child ring is independent? 
-        // Usually, child ring depends on parent selection.
-        // So we must find what WOULD be selected at depth 0, then depth 1, etc.
-
         let resolvedIndex = -1;
         let resolvedItem: RadialItem | null = null;
+        let actualDepth = -1;
 
-        // We must walk from 0 to targetDepth
+        // Walk from 0 to targetDepth
         for (let d = 0; d <= targetDepth; d++) {
             if (!currentItems || currentItems.length === 0) {
-                // Path ends before target depth
-                return { depth: d - 1, index: -1, item: null };
+                // If we ran out of items before reaching target depth, stop here.
+                break;
             }
 
+            // Calculate index for THIS depth based on the angle
+            // Pass the item count at this level so geometry knows how to slice the pie
             const { index } = hitTest(point, this.config, currentItems.length);
-
+            
+            // Gap Check: hitTest returns -1 if in deadzone, but index logic might be loose?
+            // Our hitTest already calls getIndexFromAngle which should handle it.
+            // If index is valid, we proceed.
+            
             if (index === -1) {
+                // We are in a valid ring depth, but hit a gap or invalid angle?
+                // If we hit a gap at depth 0, we can't be at depth 1.
+                // So the entire hit is invalid/gap.
                 return { depth: d, index: -1, item: null };
             }
-
+            
             const item = currentItems[index];
+            
+            // Update our "best guess" so far
+            resolvedIndex = index;
+            resolvedItem = item;
+            actualDepth = d;
 
-            if (d === targetDepth) {
-                resolvedIndex = index;
-                resolvedItem = item;
-            } else {
-                // Prepare for next iteration
-                currentItems = item.children || [];
+            if (d < targetDepth) {
+                // Prepare for next iteration (Drill down)
+                // If this item has children, they become the context for the next ring
+                if (item.children && item.children.length > 0) {
+                    currentItems = item.children;
+                } else {
+                    // We hit a leaf before the target depth (e.g. mouse is far out, but branch ended)
+                    // The user is technically "hovering" the leaf, just far away.
+                    // We stop here.
+                    break;
+                }
             }
         }
 
-        return { depth: targetDepth, index: resolvedIndex, item: resolvedItem };
+        return { depth: actualDepth, index: resolvedIndex, item: resolvedItem };
     }
 
     private handleHitTest(point: Point) {

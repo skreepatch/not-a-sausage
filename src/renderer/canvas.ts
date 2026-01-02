@@ -39,6 +39,7 @@ export class CanvasRenderer {
         });
 
         // Initial path generation
+        console.log('[Renderer] Initializing CanvasRenderer...');
         this.recalculatePaths();
     }
 
@@ -69,6 +70,7 @@ export class CanvasRenderer {
     }
 
     public start() {
+        console.log('[Renderer] Start called. RAF ID:', this.rafId);
         if (!this.rafId) {
             this.loop();
         }
@@ -108,6 +110,7 @@ export class CanvasRenderer {
 
     private recalculatePaths() {
         this.paths.clear();
+        console.log('[Renderer] Recalculating paths for', this.rootItems.length, 'items');
         // Recursively calculate paths for all reachable items
         // For simplicity in Phase 2, we'll just calculate paths for visible rings based on potentially expanding logic.
         // Or simpler: Just calculate paths for the root and let 'render' handle logic?
@@ -120,6 +123,10 @@ export class CanvasRenderer {
 
     private generatePathsRecursive(items: RadialItem[], depth: number) {
         if (!items || items.length === 0) return;
+        if (depth > 10) {
+            console.warn('[Renderer] Max recursion depth reached in generatePathsRecursive');
+            return;
+        }
 
         const { innerRadius, ringWidth, startAngle = -Math.PI / 2, gap = 0 } = this.config;
         const count = items.length;
@@ -179,38 +186,58 @@ export class CanvasRenderer {
 
     private render() {
         const { width, height } = this.canvas;
-        // Clear the canvas efficiently using the current transform (centered)
-        // We clear a large enough area to cover the visible canvas
-        // Since we translated to center, the top-left is (-width/2, -height/2) in DPR scaled units?
-        // Wait, width/height are physical pixels. The context is scaled by DPR.
-        // So logical width is width/dpr.
-        // To be safe and simple without calculating exact bounds, we can clear a large area.
-        // Or use the inverse logic:
-        const dpr = window.devicePixelRatio || 1;
-        const logicalWidth = width / dpr;
-        const logicalHeight = height / dpr;
+        // console.log(`[Renderer] Canvas size: ${width}x${height}`);
 
-        this.ctx.clearRect(-logicalWidth / 2, -logicalHeight / 2, logicalWidth, logicalHeight);
+        // Cache Theme Colors once per frame
+        const theme = {
+            bgActive: this.getThemeColor('--bagel-bg-active', 'rgba(100, 149, 237, 0.8)'),
+            bgInactive: this.getThemeColor('--bagel-bg-inactive', 'rgba(50, 50, 50, 0.6)'),
+            text: this.getThemeColor('--bagel-text-color', '#ffffff'),
+            glow: this.getThemeColor('--bagel-glow-color', 'rgba(100, 149, 237, 0.6)'),
+            font: this.getThemeColor('--bagel-font-family', 'sans-serif'),
+            cursor: this.getThemeColor('--bagel-cursor-color', 'rgba(255, 0, 0, 0.5)'),
+        };
 
-        const state = this.stateManager.getState();
+        try {
+            // Clear the canvas efficiently using the current transform (centered)
+            const dpr = window.devicePixelRatio || 1;
+            const logicalWidth = width / dpr;
+            const logicalHeight = height / dpr;
 
-        // Don't render if closed
-        if (state.status === MenuStatus.CLOSED) return;
+            // Reset transform to identity to clear everything reliably
+            this.ctx.save();
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            this.ctx.clearRect(0, 0, width, height);
+            this.ctx.restore();
 
-        // 1. Render Rings
-        this.renderRings(state);
+            const state = this.stateManager.getState();
 
-        // 2. Render Cursor Line (if gliding)
-        if (state.status === MenuStatus.GLIDING && this.lastCursor) {
-            this.renderCursorLine();
-        }
+            console.log('[Renderer] Rendering frame. Status:', state.status, 'Items:', this.rootItems.length);
 
-        // 3. Render Center Info
-        this.renderCenter(state);
+            // Don't render if closed
+            if (state.status === MenuStatus.CLOSED) {
+                console.log('[Renderer] Skipping render: CLOSED');
+                return;
+            }
 
-        // 4. Debug Overlays
-        if (this.debug) {
-            this.renderDebugInfo(state);
+            // 1. Render Rings
+            this.renderRings(state, theme);
+
+            // 2. Render Cursor Line (if gliding)
+            if (state.status === MenuStatus.GLIDING && this.lastCursor) {
+                this.renderCursorLine(theme);
+            }
+
+            // 3. Render Center Info
+            this.renderCenter(state, theme);
+
+            // 4. Debug Overlays
+            if (this.debug) {
+                this.renderDebugInfo(state);
+            }
+        } catch (e) {
+            console.error('[Renderer] Critical Error in Render Loop:', e);
+            this.stop(); // Stop loop to prevent browser hang
         }
     }
 
@@ -293,13 +320,13 @@ export class CanvasRenderer {
             this.ctx.stroke(path);
 
             // Draw Label
-            this.drawLabel(item, depth, index, itemCount, isActive);
+            this.drawLabel(item, depth, index, itemCount, isActive, theme, fontString);
 
             this.ctx.restore();
         });
     }
 
-    private drawLabel(item: RadialItem, depth: number, index: number, itemCount: number, isActive: boolean) {
+    private drawLabel(item: RadialItem, depth: number, index: number, itemCount: number, isActive: boolean, theme: any, font: string) {
         const { innerRadius, ringWidth, startAngle = -Math.PI / 2 } = this.config;
         const sliceAngle = TWO_PI / itemCount;
 
@@ -312,8 +339,8 @@ export class CanvasRenderer {
         const x = Math.cos(thetaMid) * rMid;
         const y = Math.sin(thetaMid) * rMid;
 
-        this.ctx.fillStyle = this.getThemeColor('--bagel-text-color', isActive ? '#fff' : '#ccc');
-        this.ctx.font = `12px ${this.getThemeColor('--bagel-font-family', 'sans-serif')}`;
+        this.ctx.fillStyle = isActive ? '#fff' : theme.text;
+        this.ctx.font = font;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
 
@@ -386,6 +413,13 @@ export class CanvasRenderer {
 
         this.ctx.fillText(`r: ${r.toFixed(1)}`, textX, textY);
         this.ctx.fillText(`θ: ${theta.toFixed(2)}`, textX, textY + 12);
+        this.ctx.fillText(`x,y: ${x.toFixed(0)},${y.toFixed(0)}`, textX, textY + 24);
+
+        // Draw Pointer Dot
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+        this.ctx.fillStyle = '#ff00ff';
+        this.ctx.fill();
 
         // Highlight hit boxes (re-stroke paths with red)
         // We iterate current paths

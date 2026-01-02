@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Dark background for the whole page default */
+body {
+  margin: 0;
+  background-color: #111;
+  color: white;
+  overflow: hidden; /* Prevent scrolling on body, let App handle it */
+}

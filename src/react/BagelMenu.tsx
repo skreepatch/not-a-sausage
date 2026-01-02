@@ -33,7 +33,7 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   // Refs to hold instances to prevent recreation
   const stateManagerRef = useRef<BagelStateManager | null>(null);
   const rendererRef = useRef<CanvasRenderer | null>(null);
@@ -74,44 +74,44 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
     // Subscribe to state changes
     const unsubscribe = stateManager.subscribe((state: MenuState) => {
       setMenuStatus(state.status);
-      
+
       // Handle closing if state goes to CLOSED (e.g. from Esc key or internal logic)
       if (state.status === MenuStatus.CLOSED && isOpen) {
-          // If internal state closes, we should notify parent or sync?
-          // The prop 'isOpen' controls visibility. 
-          // If we want two-way binding, we need onClose to be called when internal state closes.
-          // BUT, if internal state closes, does it wait for parent?
-          // Let's say we request close.
-          onClose();
+        // If internal state closes, we should notify parent or sync?
+        // The prop 'isOpen' controls visibility. 
+        // If we want two-way binding, we need onClose to be called when internal state closes.
+        // BUT, if internal state closes, does it wait for parent?
+        // Let's say we request close.
+        onClose();
       }
 
       if (state.selection && onSelect) {
-         // Logic to trigger onSelect handled by InputController, 
-         // but if we want to ensure it passes through here or double check:
-         // InputController calls item.action/item.onSelect.
-         // If we want a global handler, we can rely on InputController calling it if we pass it down?
-         // InputController currently doesn't know about global onSelect.
-         // Let's patch InputController logic or just rely on state.selection change here?
-         // State selection is indices. We need items.
-         // Reconstructing path here is safer for global handler.
-         const pathItems: RadialItem[] = [];
-         let currentList = items;
-         for (const idx of state.selection) {
-            const item = currentList[idx];
-            if (item) {
-                pathItems.push(item);
-                currentList = item.children || [];
-            } else {
-                break;
-            }
-         }
-         onSelect(pathItems);
+        // Logic to trigger onSelect handled by InputController, 
+        // but if we want to ensure it passes through here or double check:
+        // InputController calls item.action/item.onSelect.
+        // If we want a global handler, we can rely on InputController calling it if we pass it down?
+        // InputController currently doesn't know about global onSelect.
+        // Let's patch InputController logic or just rely on state.selection change here?
+        // State selection is indices. We need items.
+        // Reconstructing path here is safer for global handler.
+        const pathItems: RadialItem[] = [];
+        let currentList = items;
+        for (const idx of state.selection) {
+          const item = currentList[idx];
+          if (item) {
+            pathItems.push(item);
+            currentList = item.children || [];
+          } else {
+            break;
+          }
+        }
+        onSelect(pathItems);
       }
     });
-    
+
     // Resize Observer
     const resizeObserver = new ResizeObserver(() => {
-        renderer.resize();
+      renderer.resize();
     });
     resizeObserver.observe(containerRef.current);
 
@@ -120,9 +120,13 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
       resizeObserver.disconnect();
       inputController.destroy();
       renderer.stop();
+      // Clear refs to allow re-initialization
+      stateManagerRef.current = null;
+      rendererRef.current = null;
+      inputControllerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+    // Re-run if isOpen changes (to handle mounting/unmounting of the portal content)
+  }, [isOpen]);
 
   // Sync Props
   useEffect(() => {
@@ -139,15 +143,15 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
 
   // Sync Open State
   useEffect(() => {
-      if (stateManagerRef.current) {
-          const currentStatus = stateManagerRef.current.getState().status;
-          if (isOpen && currentStatus === MenuStatus.CLOSED) {
-              stateManagerRef.current.setStatus(MenuStatus.OPEN);
-          } else if (!isOpen && currentStatus !== MenuStatus.CLOSED) {
-              stateManagerRef.current.setStatus(MenuStatus.CLOSED);
-              stateManagerRef.current.reset();
-          }
+    if (stateManagerRef.current) {
+      const currentStatus = stateManagerRef.current.getState().status;
+      if (isOpen && currentStatus === MenuStatus.CLOSED) {
+        stateManagerRef.current.setStatus(MenuStatus.OPEN);
+      } else if (!isOpen && currentStatus !== MenuStatus.CLOSED) {
+        stateManagerRef.current.setStatus(MenuStatus.CLOSED);
+        stateManagerRef.current.reset();
       }
+    }
   }, [isOpen]);
 
   // Construct Theme Styles
@@ -160,14 +164,14 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
   // If we want to animate out, we need to keep it mounted.
   // For now, simple conditional rendering or visibility toggling.
   // Requirement: "Manage the Open/Closed state." "Use a Portal."
-  
+
   if (!isOpen && menuStatus === MenuStatus.CLOSED) return null;
 
   return createPortal(
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className={`bagel-menu-overlay ${className || ''}`}
-      style={{ 
+      style={{
         position: 'fixed',
         top: 0,
         left: 0,
@@ -183,34 +187,34 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
     >
       {/* Container for Canvas to size it */}
       <div style={{ width, height, position: 'relative' }}>
-          <canvas 
-            ref={canvasRef}
-            style={{ 
-              display: 'block', 
-              width: '100%', 
-              height: '100%' 
-            }}
-          />
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%'
+          }}
+        />
       </div>
 
       {/* Hidden A11y Tree */}
-      <nav 
-        aria-label="Radial Navigation" 
-        style={{ 
-            position: 'absolute', 
-            width: 1, 
-            height: 1, 
-            overflow: 'hidden', 
-            clip: 'rect(0,0,0,0)' 
+      <nav
+        aria-label="Radial Navigation"
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          overflow: 'hidden',
+          clip: 'rect(0,0,0,0)'
         }}
       >
         <ul role="menu" aria-expanded={isOpen}>
-             {/* Recursive list generation could go here for screen readers */}
-             {items.map((item, idx) => (
-                 <li key={item.id} role="menuitem">
-                     {item.label}
-                 </li>
-             ))}
+          {/* Recursive list generation could go here for screen readers */}
+          {items.map((item, idx) => (
+            <li key={item.id} role="menuitem">
+              {item.label}
+            </li>
+          ))}
         </ul>
       </nav>
     </div>,
