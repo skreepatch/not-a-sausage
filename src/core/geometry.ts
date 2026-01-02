@@ -21,27 +21,42 @@ export function cartesianToPolar(x: number, y: number): PolarPoint {
 /**
  * Calculates the depth (ring index) based on radius and config.
  * Returns -1 if inside dead zone or outside max range (if applicable).
+ * Accounts for gaps between rings (radial gaps).
  */
 export function getDepth(r: number, config: BagelConfig): number {
-    const { innerRadius, ringWidth, deadZoneRadius = 0 } = config;
+    const { innerRadius, ringWidth, deadZoneRadius = 0, gap = 0 } = config;
 
     if (r < deadZoneRadius) {
         return -1; // Inside dead zone
     }
 
     if (r < innerRadius) {
-        return -1; // Between dead zone and first ring (if any gap) or just treated as dead
+        return -1; // Between dead zone and first ring
     }
 
     const safeRingWidth = Math.max(1, ringWidth);
 
-    // r = innerRadius + depth * ringWidth + offset
-    // depth = floor((r - innerRadius) / ringWidth)
-    const depth = Math.floor((r - innerRadius) / safeRingWidth);
-
-    // Debug Log
-    // console.log(`[Geometry] r:${r}, inner:${innerRadius}, width:${ringWidth} -> depth:${depth}`);
-
+    // Gap is now in pixels, used directly without scaling
+    // Calculate depth iteratively to match actual ring positions in renderer
+    const gapPixels = gap || 0;
+    let depth = 0;
+    let currentR = innerRadius;
+    
+    while (r >= currentR) {
+        const ringEnd = currentR + safeRingWidth;
+        
+        if (r < ringEnd) {
+            return depth; // We're within this ring
+        }
+        
+        // Move to next ring: add ring width + gap
+        currentR = ringEnd + gapPixels;
+        depth++;
+        
+        // Safety cap
+        if (depth > 100) break;
+    }
+    
     return depth;
 }
 
@@ -108,13 +123,20 @@ export function hitTest(
   }
 
   // 3. Calculate Index
+  // Calculate slice gap angle from pixel gap: gapAngle = gap / rMid
+  // Use middle radius to match renderer logic
   let index = -1;
   if (itemsCount > 0) {
-      // Calculate angular gap if pixel gap is provided
-      // r varies by depth... we should use the inner radius of the current ring for gap calc to be safe
-      const rInner = config.innerRadius + depth * config.ringWidth;
-      const gapAngle = config.gap && config.gap > 0 ? (config.gap / rInner) : 0;
+      // Calculate rInner iteratively to match renderer (accounts for ring gaps)
+      let rInner = config.innerRadius;
+      const gapPixels = config.gap || 0;
+      for (let d = 0; d < depth; d++) {
+          rInner += config.ringWidth + gapPixels;
+      }
       
+      const rOuter = rInner + config.ringWidth;
+      const rMid = (rInner + rOuter) / 2; // Middle radius of the ring
+      const gapAngle = gapPixels > 0 ? (gapPixels / rMid) : 0; // Convert pixel gap to angular gap
       index = getIndexFromAngle(theta, itemsCount, config.startAngle, gapAngle);
   }
     

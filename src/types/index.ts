@@ -8,12 +8,15 @@ export interface RadialItem {
     onSelect?: (path: RadialItem[]) => void;
     // Optional custom data
     data?: any;
+    // Optional color override (RGBA or hex format)
+    // If provided, this color will be used instead of auto-assigned palette colors
+    color?: string;
 }
 
 export interface BagelConfig {
     innerRadius: number;
     ringWidth: number;
-    gap?: number; // Gap between rings/slices in pixels
+    gap?: number; // Gap in pixels, applied uniformly to both ring gaps and slice gaps
     startAngle?: number; // Default to -PI/2 (12 o'clock)
     deadZoneRadius?: number; // Center area that ignores input
 }

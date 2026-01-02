@@ -40,9 +40,10 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
   const inputControllerRef = useRef<InputController | null>(null);
 
   // Expose some state for accessibility / debug if needed
-  const [menuStatus, setMenuStatus] = useState<MenuStatus>(MenuStatus.CLOSED);
+  const [, setMenuStatus] = useState<MenuStatus>(MenuStatus.CLOSED);
+  const [hasInteracted, setHasInteracted] = useState(false);
 
-  // Initialize Engine
+  // Initialize Engine - always initialize to show dead zone when closed
   useLayoutEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
 
@@ -74,6 +75,11 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
     // Subscribe to state changes
     const unsubscribe = stateManager.subscribe((state: MenuState) => {
       setMenuStatus(state.status);
+
+      // Track first interaction (when menu opens from closed)
+      if (state.status === MenuStatus.OPEN && !hasInteracted) {
+        setHasInteracted(true);
+      }
 
       // Handle closing if state goes to CLOSED (e.g. from Esc key or internal logic)
       if (state.status === MenuStatus.CLOSED && isOpen) {
@@ -125,8 +131,8 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
       rendererRef.current = null;
       inputControllerRef.current = null;
     };
-    // Re-run if isOpen changes (to handle mounting/unmounting of the portal content)
-  }, [isOpen]);
+    // Re-run if dependencies change
+  }, [isOpen, items, config, debug]);
 
   // Sync Props
   useEffect(() => {
@@ -141,18 +147,8 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
     }
   }, [config, items, debug]);
 
-  // Sync Open State
-  useEffect(() => {
-    if (stateManagerRef.current) {
-      const currentStatus = stateManagerRef.current.getState().status;
-      if (isOpen && currentStatus === MenuStatus.CLOSED) {
-        stateManagerRef.current.setStatus(MenuStatus.OPEN);
-      } else if (!isOpen && currentStatus !== MenuStatus.CLOSED) {
-        stateManagerRef.current.setStatus(MenuStatus.CLOSED);
-        stateManagerRef.current.reset();
-      }
-    }
-  }, [isOpen]);
+  // Menu is always visible, state is managed internally by InputController
+  // No need to sync isOpen prop since menu is always rendered
 
   // Construct Theme Styles
   const themeStyles = {
@@ -160,13 +156,7 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
     ...theme
   } as React.CSSProperties;
 
-  // Render Portal if open (or always render but hide?)
-  // If we want to animate out, we need to keep it mounted.
-  // For now, simple conditional rendering or visibility toggling.
-  // Requirement: "Manage the Open/Closed state." "Use a Portal."
-
-  if (!isOpen && menuStatus === MenuStatus.CLOSED) return null;
-
+  // Always render canvas (shows dead zone when closed, full menu when open)
   return createPortal(
     <div
       ref={containerRef}
@@ -178,7 +168,7 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
         width: '100vw',
         height: '100vh',
         zIndex: 9999,
-        pointerEvents: isOpen ? 'auto' : 'none', // Allow clicks through if closing/animating?
+        pointerEvents: 'auto', // Always allow interaction
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
