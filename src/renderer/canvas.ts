@@ -241,7 +241,7 @@ export class CanvasRenderer {
         }
     }
 
-    private renderRings(state: MenuState) {
+    private renderRings(state: MenuState, theme: any) {
         // Traverse the active path to draw relevant rings.
         // Always draw Ring 0 (depth 0).
         // Then draw subsequent rings based on activePath.
@@ -250,7 +250,7 @@ export class CanvasRenderer {
         let depth = 0;
 
         // Draw Root Ring
-        this.drawRing(currentItems, depth, state);
+        this.drawRing(currentItems, depth, state, theme);
 
         // Draw Nested Rings
         for (const activeIndex of state.activePath) {
@@ -258,7 +258,7 @@ export class CanvasRenderer {
             if (selectedItem && selectedItem.children && selectedItem.children.length > 0) {
                 depth++;
                 currentItems = selectedItem.children;
-                this.drawRing(currentItems, depth, state);
+                this.drawRing(currentItems, depth, state, theme);
             } else {
                 break; // End of path
             }
@@ -270,7 +270,7 @@ export class CanvasRenderer {
         return style.getPropertyValue(variable).trim() || fallback;
     }
 
-    private drawRing(items: RadialItem[], depth: number, state: MenuState) {
+    private drawRing(items: RadialItem[], depth: number, state: MenuState, theme: any) {
         const itemCount = items.length;
 
         // Check if we have paths for this configuration, if not generate them
@@ -281,9 +281,8 @@ export class CanvasRenderer {
 
         const activeIndexAtDepth = state.activePath[depth];
 
-        const bgActive = this.getThemeColor('--bagel-bg-active', 'rgba(100, 149, 237, 0.8)');
-        const bgInactive = this.getThemeColor('--bagel-bg-inactive', 'rgba(50, 50, 50, 0.6)');
-        const glowColor = this.getThemeColor('--bagel-glow-color', 'rgba(100, 149, 237, 0.6)');
+        // Use theme object instead of calling getThemeColor multiple times
+        const fontString = `12px ${theme.font}`;
 
         items.forEach((item, index) => {
             const pathKey = `${depth}-${itemCount}-${index}`;
@@ -292,24 +291,21 @@ export class CanvasRenderer {
             if (!path) return;
 
             const isActive = index === activeIndexAtDepth;
-            // Also check if this is the "final" currently hovered item for glow?
-            // or if it's just part of the path.
-            // Let's say "active" means it's part of the selected path.
 
             this.ctx.save();
 
             if (isActive) {
-                this.ctx.fillStyle = bgActive;
+                this.ctx.fillStyle = theme.bgActive;
 
                 // Add "fake" glow if it is the TIP of the active path
                 // Using stroke instead of shadowBlur for performance
                 if (depth === state.activePath.length - 1 || (depth === state.activePath.length && isActive)) {
                     this.ctx.lineWidth = 4;
-                    this.ctx.strokeStyle = glowColor;
+                    this.ctx.strokeStyle = theme.glow;
                     this.ctx.stroke(path);
                 }
             } else {
-                this.ctx.fillStyle = bgInactive;
+                this.ctx.fillStyle = theme.bgInactive;
             }
 
             this.ctx.fill(path);
@@ -348,7 +344,7 @@ export class CanvasRenderer {
         this.ctx.fillText(item.label, x, y, maxLabelWidth);
     }
 
-    private renderCursorLine() {
+    private renderCursorLine(theme: any) {
         if (!this.lastCursor) return;
 
         // ...
@@ -357,13 +353,13 @@ export class CanvasRenderer {
         this.ctx.beginPath();
         this.ctx.moveTo(0, 0);
         this.ctx.lineTo(this.lastCursor.x, this.lastCursor.y);
-        this.ctx.strokeStyle = this.getThemeColor('--bagel-cursor-color', 'rgba(255, 0, 0, 0.5)');
+        this.ctx.strokeStyle = theme.cursor;
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
         this.ctx.restore();
     }
 
-    private renderCenter(state: MenuState) {
+    private renderCenter(state: MenuState, theme: any) {
         // Draw something in the dead zone
         this.ctx.save();
         this.ctx.fillStyle = '#333';

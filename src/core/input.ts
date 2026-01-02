@@ -326,40 +326,90 @@ export class InputController {
     }
 
     private handleHitTest(point: Point) {
-        const hit = this.resolveHit(point);
-
-        if (hit.index !== -1 && hit.depth !== -1) {
-            const state = this.stateManager.getState();
-
-            // Construct new path
-            // Preserve path up to depth, update at depth, truncate after
-            const newPath = [...state.activePath];
-
-            // If we jumped to a new ring (e.g. 0 -> 1), ensure we have a valid parent
-            // resolveHit handles walking, so if we got a hit, the path to depth-1 is valid.
-            newPath[hit.depth] = hit.index;
-            // Truncate any deeper selections as we have switched branch or are currently at this leaf
-            const finalPath = newPath.slice(0, hit.depth + 1);
-
-            // Check if changed
-            const pathChanged = finalPath.length !== state.activePath.length ||
-                finalPath.some((v, i) => v !== state.activePath[i]);
-
-            if (pathChanged) {
-                this.stateManager.setActivePath(finalPath);
-                if (navigator.vibrate) navigator.vibrate(10);
+        const state = this.stateManager.getState();
+        const currentDepth = state.activePath.length > 0 ? state.activePath.length - 1 : 0;
+        
+        // First, determine what depth we're actually at based on radius
+        const { r, theta } = cartesianToPolar(point.x, point.y);
+        const targetDepth = hitTest(point, this.config).depth;
+        
+        if (targetDepth === -1) {
+            // In dead zone - clear selection
+            if (state.activePath.length > 0) {
+                this.stateManager.setActivePath([]);
             }
-        } else {
-            // If we hit dead zone, maybe clear selection?
-            if (hit.depth === -1) {
-                // Optionally clear path if we go back to center?
-                // Or keep it as "last known"?
-                // If we go to center, we might want to clear path to show "root" state.
-                if (this.stateManager.getState().activePath.length > 0) {
-                    this.stateManager.setActivePath([]);
-                    // vibrate?
+            return;
+        }
+        
+        let finalPath: number[] = [];
+        
+        // CRITICAL: When in a nested ring (depth > 0), respect the current parent
+        // Only calculate index for the current depth using current parent's children
+        if (currentDepth > 0 && targetDepth === currentDepth) {
+            // Staying in the same nested ring - use current parent, only update index
+            finalPath = [...state.activePath];
+            
+            // Get the items at current depth (children of current parent)
+            let currentItems = this.rootItems;
+            for (let i = 0; i < currentDepth; i++) {
+                currentItems = currentItems[state.activePath[i]]?.children || [];
+            }
+            
+            // Calculate index at current depth using current parent's children
+            if (currentItems.length > 0) {
+                const { index } = hitTest(point, this.config, currentItems.length);
+                if (index !== -1) {
+                    finalPath[currentDepth] = index;
+                } else {
+                    // In a gap - don't update
+                    return;
+                }
+            } else {
+                return; // No items at this depth
+            }
+        } else if (targetDepth < currentDepth) {
+            // Moved back to a shallower depth - rebuild from root
+            finalPath = [];
+            let currentItems = this.rootItems;
+            
+            for (let d = 0; d <= targetDepth; d++) {
+                if (!currentItems || currentItems.length === 0) break;
+                
+                const { index } = hitTest(point, this.config, currentItems.length);
+                if (index === -1) break; // In a gap
+                
+                finalPath.push(index);
+                if (d < targetDepth) {
+                    const item = currentItems[index];
+                    currentItems = item?.children || [];
                 }
             }
+        } else {
+            // At root level or moving deeper - rebuild from root
+            finalPath = [];
+            let currentItems = this.rootItems;
+            
+            for (let d = 0; d <= targetDepth; d++) {
+                if (!currentItems || currentItems.length === 0) break;
+                
+                const { index } = hitTest(point, this.config, currentItems.length);
+                if (index === -1) break; // In a gap
+                
+                finalPath.push(index);
+                if (d < targetDepth) {
+                    const item = currentItems[index];
+                    currentItems = item?.children || [];
+                }
+            }
+        }
+
+        // Only update if path actually changed
+        const pathChanged = finalPath.length !== state.activePath.length ||
+            finalPath.some((v, i) => v !== state.activePath[i]);
+
+        if (pathChanged) {
+            this.stateManager.setActivePath(finalPath);
+            if (navigator.vibrate) navigator.vibrate(10);
         }
     }
 
