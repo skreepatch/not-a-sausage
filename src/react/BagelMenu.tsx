@@ -210,7 +210,7 @@ export const BagelMenu: React.FC<BagelMenuProps> = ({
       >
         <ul role="menu" aria-expanded={isOpen}>
           {/* Recursive list generation could go here for screen readers */}
-          {items.map((item, idx) => (
+          {items.map((item) => (
             <li key={item.id} role="menuitem">
               {item.label}
             </li>

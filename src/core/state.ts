@@ -1,5 +1,3 @@
-import { Point } from '../types';
-
 export enum MenuStatus {
     CLOSED = 'CLOSED',
     OPEN = 'OPEN',           // Open and stationary (waiting for click/interaction)

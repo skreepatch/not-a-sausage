@@ -15,7 +15,6 @@ export class CanvasRenderer {
     private debug: boolean = false;
 
     // Cache for last known state to detect changes
-    private lastState: MenuState | null = null;
     private lastCursor: Point | null = null;
 
     constructor(
@@ -142,7 +141,7 @@ export class CanvasRenderer {
         const gapAngle = gap > 0 ? (gap / rInner) : 0;
         const effectiveSliceAngle = sliceAngle - gapAngle;
 
-        items.forEach((item, index) => {
+        items.forEach((_item, index) => {
             const startTheta = startAngle + index * sliceAngle + gapAngle / 2;
             const endTheta = startTheta + effectiveSliceAngle;
 
@@ -200,10 +199,6 @@ export class CanvasRenderer {
 
         try {
             // Clear the canvas efficiently using the current transform (centered)
-            const dpr = window.devicePixelRatio || 1;
-            const logicalWidth = width / dpr;
-            const logicalHeight = height / dpr;
-
             // Reset transform to identity to clear everything reliably
             this.ctx.save();
             this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -359,7 +354,7 @@ export class CanvasRenderer {
         this.ctx.restore();
     }
 
-    private renderCenter(state: MenuState, theme: any) {
+    private renderCenter(state: MenuState, _theme: any) {
         // Draw something in the dead zone
         this.ctx.save();
         this.ctx.fillStyle = '#333';

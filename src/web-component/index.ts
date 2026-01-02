@@ -1,9 +1,9 @@
 // Optional Web Component Wrapper
 import { BagelConfig, RadialItem } from '../types';
-import { BagelStateManager, MenuStatus } from '../core/state';
+import { BagelStateManager } from '../core/state';
 import { CanvasRenderer } from '../renderer/canvas';
 import { InputController } from '../core/input';
-import { DEFAULT_THEME, BagelTheme } from '../types/theme';
+import { DEFAULT_THEME } from '../types/theme';
 
 export class BagelMenuElement extends HTMLElement {
   private shadow: ShadowRoot;

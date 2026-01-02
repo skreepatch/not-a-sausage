@@ -1,5 +1,4 @@
 import { useRef, useCallback } from 'react';
-import { BagelStateManager, MenuStatus } from '../core/state';
 
 // This hook might need access to the Manager instance. 
 // Ideally, BagelMenu should expose the manager or we use Context.

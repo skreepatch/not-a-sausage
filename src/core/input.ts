@@ -1,6 +1,6 @@
 import { BagelConfig, Point, RadialItem } from '../types';
 import { BagelStateManager, MenuStatus } from './state';
-import { hitTest, cartesianToPolar } from './geometry';
+import { hitTest } from './geometry';
 import { CanvasRenderer } from '../renderer/canvas';
 
 export class InputController {
@@ -263,7 +263,6 @@ export class InputController {
      * Helper to perform hit test against current state logic
      */
     private resolveHit(point: Point) {
-        const { r, theta } = cartesianToPolar(point.x, point.y);
         let targetDepth = hitTest(point, this.config).depth; // First get depth blindly
 
         // Safety Cap to prevent potential infinite loops
@@ -330,7 +329,6 @@ export class InputController {
         const currentDepth = state.activePath.length > 0 ? state.activePath.length - 1 : 0;
         
         // First, determine what depth we're actually at based on radius
-        const { r, theta } = cartesianToPolar(point.x, point.y);
         const targetDepth = hitTest(point, this.config).depth;
         
         if (targetDepth === -1) {
